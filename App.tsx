@@ -7,10 +7,28 @@ import PatientsPage from './pages/PatientsPage';
 import ScanAnalyzePage from './pages/ScanAnalyzePage';
 import ResultsPage from './pages/ResultsPage';
 import KnowledgeBasePage from './pages/KnowledgeBasePage';
+import FuturisticAIChat from './components/FuturisticAIChat';
+import ParticleField from './components/ParticleField';
+import VoiceCommandSystem from './components/VoiceCommandSystem';
 
 const App: React.FC = () => {
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(AppRoute.DASHBOARD);
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
+
+  // Test voice recognition on mount
+  useEffect(() => {
+    console.log('🚀 APP LOADED - Testing voice recognition...');
+    
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      console.log('✅ Web Speech API is AVAILABLE!');
+      console.log('🎯 Click the MIC button (top-right) to activate voice control');
+    } else {
+      console.error('❌ Web Speech API NOT supported in this browser');
+      alert('⚠️ Voice control requires Chrome, Edge, or Safari browser');
+    }
+  }, []);
 
   // Mock data initialization
   const [scans, setScans] = useState<ScanResult[]>([
@@ -88,12 +106,29 @@ const App: React.FC = () => {
   };
 
   return (
-    <AppShell 
-      currentRoute={currentRoute} 
-      onNavigate={setCurrentRoute}
-    >
-      {renderContent()}
-    </AppShell>
+    <>
+      {/* Futuristic Particle Background */}
+      <ParticleField />
+      
+      {/* Global Voice Command System */}
+      <VoiceCommandSystem 
+        onNavigate={setCurrentRoute}
+        onAction={(action, params) => {
+          console.log('Voice action:', action, params);
+          // Handle voice actions here
+        }}
+      />
+      
+      <AppShell 
+        currentRoute={currentRoute} 
+        onNavigate={setCurrentRoute}
+      >
+        {renderContent()}
+      </AppShell>
+      
+      {/* Futuristic AI Chat - Available on all pages */}
+      <FuturisticAIChat />
+    </>
   );
 };
 

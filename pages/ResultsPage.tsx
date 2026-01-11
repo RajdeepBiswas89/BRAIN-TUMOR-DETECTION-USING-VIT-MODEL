@@ -1,6 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { 
   Maximize2, 
   Download, 
@@ -46,6 +48,148 @@ const InsightRow: React.FC<{icon: React.ReactNode, text: string}> = ({ icon, tex
 const ResultsPage: React.FC<{ scan: ScanResult }> = ({ scan }) => {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  const generatePDFReport = async () => {
+    if (!reportRef.current) return;
+    
+    setGeneratingPDF(true);
+    try {
+      // Create PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      
+      // Header
+      pdf.setFillColor(10, 36, 99);
+      pdf.rect(0, 0, pageWidth, 40, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('NeuroVision AI', 15, 20);
+      pdf.setFontSize(10);
+      pdf.text('Brain Tumor Detection Report', 15, 28);
+      
+      // Patient Info
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Patient Information', 15, 55);
+      
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Name: ${scan.patientName}`, 15, 65);
+      pdf.text(`Patient ID: ${scan.patientId}`, 15, 72);
+      pdf.text(`Scan Date: ${scan.scanDate}`, 15, 79);
+      pdf.text(`Scan ID: ${scan.id}`, 15, 86);
+      
+      // Diagnosis Section
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Diagnostic Results', 15, 100);
+      
+      // Classification Box
+      const isHealthy = scan.classification === 'No Tumor';
+      if (isHealthy) {
+        pdf.setFillColor(42, 157, 143);
+      } else {
+        pdf.setFillColor(239, 68, 68);
+      }
+      pdf.roundedRect(15, 105, 80, 25, 3, 3, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(14);
+      pdf.text('Classification:', 20, 115);
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(scan.classification, 20, 125);
+      
+      // Confidence
+      pdf.setFillColor(240, 240, 240);
+      pdf.roundedRect(100, 105, 80, 25, 3, 3, 'F');
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Confidence:', 105, 115);
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${(scan.confidence * 100).toFixed(1)}%`, 105, 125);
+      
+      // Probabilities
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Classification Probabilities', 15, 145);
+      
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      let yPos = 155;
+      Object.entries(scan.probabilities).sort(([,a], [,b]) => (b as number) - (a as number)).forEach(([name, prob]) => {
+        pdf.text(`${name}:`, 20, yPos);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`${((prob as number) * 100).toFixed(2)}%`, 80, yPos);
+        pdf.setFont('helvetica', 'normal');
+        
+        // Progress bar
+        pdf.setFillColor(220, 220, 220);
+        pdf.rect(100, yPos - 4, 80, 5, 'F');
+        pdf.setFillColor(42, 157, 143);
+        pdf.rect(100, yPos - 4, 80 * (prob as number), 5, 'F');
+        
+        yPos += 10;
+      });
+      
+      // Metadata
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Scan Metadata', 15, yPos + 10);
+      
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      yPos += 20;
+      Object.entries(scan.metadata).forEach(([key, value]) => {
+        const label = key.replace(/([A-Z])/g, ' $1').trim();
+        pdf.text(`${label}: ${value}`, 20, yPos);
+        yPos += 7;
+      });
+      
+      // AI Insights
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('AI Neural Findings', 15, yPos + 10);
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      yPos += 20;
+      const insights = [
+        '• Spatial attention peaks detected in the peri-ventricular zone',
+        '• T2 FLAIR signal intensity matches typical patterns',
+        '• Vision Transformer (ViT) model v4.2 utilized for analysis',
+        '• High-resolution attention mapping enabled'
+      ];
+      insights.forEach(insight => {
+        pdf.text(insight, 20, yPos);
+        yPos += 7;
+      });
+      
+      // Footer
+      pdf.setFillColor(10, 36, 99);
+      pdf.rect(0, pageHeight - 20, pageWidth, 20, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(8);
+      pdf.text('Generated by NeuroVision AI | Confidential Medical Report', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, pageHeight - 5, { align: 'center' });
+      
+      // Save PDF
+      pdf.save(`NeuroVision_Report_${scan.id}_${scan.patientName.replace(/\s+/g, '_')}.pdf`);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF report. Please try again.');
+    } finally {
+      setGeneratingPDF(false);
+    }
+  };
 
   const probabilityData = Object.entries(scan.probabilities).map(([name, value]) => ({
     name,
@@ -288,8 +432,27 @@ const ResultsPage: React.FC<{ scan: ScanResult }> = ({ scan }) => {
             <InsightRow icon={<Sparkles size={14} className="text-[#4CC9F0]" />} text="T2 FLAIR signal intensity matches typical Glioma patterns." />
             <InsightRow icon={<Activity size={14} className="text-[#4CC9F0]" />} text="Contrast uptake indicates Grade II progression risk." />
           </div>
-          <button className="mt-8 w-full py-3 bg-white/10 hover:bg-white/20 transition-all rounded-xl text-xs font-bold uppercase tracking-widest border border-white/10">
-            Generate Report
+          <button 
+            onClick={generatePDFReport}
+            disabled={generatingPDF}
+            className="mt-8 w-full py-3 bg-white/10 hover:bg-white/20 transition-all rounded-xl text-xs font-bold uppercase tracking-widest border border-white/10 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generatingPDF ? (
+              <>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                >
+                  <Download size={14} />
+                </motion.div>
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <Download size={14} />
+                Download PDF Report
+              </>
+            )}
           </button>
         </motion.div>
       </div>

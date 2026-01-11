@@ -1,11 +1,68 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const Doctor3D: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const frameIdRef = useRef<number>(0);
+  const [showGreeting, setShowGreeting] = useState(true);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [greetingText, setGreetingText] = useState('Hey!');
+
+  // Hide initial greeting after 3 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowGreeting(false);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Speech synthesis function
+  const speakGreeting = () => {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    const greeting = "Hey! Welcome to NeuroVision AI. This amazing website is made by Rajdeep. I'm your medical AI assistant, ready to help you with brain tumor detection and analysis.";
+    
+    setGreetingText(greeting);
+    setShowGreeting(true);
+    setIsSpeaking(true);
+    
+    // Use Web Speech API
+    const utterance = new SpeechSynthesisUtterance(greeting);
+    utterance.rate = 0.9; // Slightly slower for clarity
+    utterance.pitch = 1.1; // Slightly higher pitch for friendly tone
+    utterance.volume = 1;
+    
+    // Try to use a female voice if available
+    const voices = window.speechSynthesis.getVoices();
+    const femaleVoice = voices.find(voice => 
+      voice.name.includes('Female') || 
+      voice.name.includes('Zira') ||
+      voice.name.includes('Samantha') ||
+      voice.name.includes('Google US English Female')
+    );
+    if (femaleVoice) {
+      utterance.voice = femaleVoice;
+    }
+    
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setTimeout(() => {
+        setShowGreeting(false);
+        setGreetingText('Hey!');
+      }, 2000);
+    };
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Handle click on doctor
+  const handleDoctorClick = () => {
+    speakGreeting();
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -136,10 +193,12 @@ const Doctor3D: React.FC = () => {
       headGroup.rotation.y = Math.sin(time * 0.5) * 0.1;
       headGroup.rotation.x = Math.sin(time * 0.3) * 0.05;
       
-      // Waving arm animation
+      // Waving arm animation - Enhanced for greeting
       // Start with shoulder rotation to wave
-      armGroup.rotation.z = Math.PI / 1.5 + Math.sin(time * 4) * 0.5;
-      armGroup.rotation.x = Math.sin(time * 2) * 0.2;
+      const waveIntensity = time < 5 ? 0.8 : 0.5; // More enthusiastic wave at start
+      const waveSpeed = time < 5 ? 6 : 4; // Faster wave at start
+      armGroup.rotation.z = Math.PI / 1.5 + Math.sin(time * waveSpeed) * waveIntensity;
+      armGroup.rotation.x = Math.sin(time * 2) * 0.3;
 
       // Subtle rotation for the whole model
       group.rotation.y = Math.sin(time * 0.2) * 0.05;
@@ -179,7 +238,76 @@ const Doctor3D: React.FC = () => {
     };
   }, []);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return (
+    <div className="relative w-full h-full">
+      {/* Clickable overlay with cursor pointer */}
+      <div 
+        ref={containerRef} 
+        className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
+        onClick={handleDoctorClick}
+        title="Click me to hear my greeting!"
+      />
+      
+      {/* Click hint indicator */}
+      {!showGreeting && !isSpeaking && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className="absolute top-4 right-4 bg-[#2A9D8F] text-white px-4 py-2 rounded-full text-xs font-bold shadow-lg z-50 pointer-events-none"
+        >
+          🎤 Click me!
+        </motion.div>
+      )}
+      
+      {/* Animated Speech Bubble */}
+      <AnimatePresence>
+        {showGreeting && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.5, y: -20 }}
+            transition={{ duration: 0.5, type: "spring" }}
+            className="absolute top-12 left-2 right-2 bg-white text-[#0A2463] px-4 py-3 rounded-2xl font-bold text-sm shadow-2xl border-2 border-[#2A9D8F]/30 z-50 max-w-md"
+            style={{
+              clipPath: 'polygon(0% 0%, 100% 0%, 100% 85%, 25% 85%, 15% 100%, 12% 85%, 0% 85%)'
+            }}
+          >
+            <motion.div
+              animate={{ scale: isSpeaking ? [1, 1.02, 1] : 1 }}
+              transition={{ duration: 0.5, repeat: isSpeaking ? Infinity : 0 }}
+              className="flex items-start gap-2"
+            >
+              <span className="text-2xl flex-shrink-0">👋</span>
+              <div className="flex-1">
+                <p className="leading-relaxed">{greetingText}</p>
+                {isSpeaking && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.5, repeat: Infinity }}
+                      className="w-2 h-2 bg-[#2A9D8F] rounded-full"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.5, repeat: Infinity, delay: 0.2 }}
+                      className="w-2 h-2 bg-[#2A9D8F] rounded-full"
+                    />
+                    <motion.div
+                      animate={{ scale: [1, 1.2, 1] }}
+                      transition={{ duration: 0.5, repeat: Infinity, delay: 0.4 }}
+                      className="w-2 h-2 bg-[#2A9D8F] rounded-full"
+                    />
+                    <span className="text-xs text-[#2A9D8F] font-black ml-2">Speaking...</span>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 };
 
 export default Doctor3D;

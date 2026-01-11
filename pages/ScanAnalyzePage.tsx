@@ -2,6 +2,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, File, CheckCircle2, AlertCircle, Play, Info, ShieldAlert } from 'lucide-react';
 import { ScanResult, TumorClass } from '../types';
+import MedicalHologram from '../components/MedicalHologram';
 
 interface ScanAnalyzePageProps {
   onAnalysisComplete: (scan: ScanResult) => void;
@@ -41,7 +42,7 @@ const ScanAnalyzePage: React.FC<ScanAnalyzePageProps> = ({ onAnalysisComplete })
     setAnalyzing(true);
     setProgress(0);
 
-    // Simulate analysis steps
+    // Simulate progress steps
     const steps = [
       { p: 15, label: 'Extracting DICOM metadata...' },
       { p: 40, label: 'Preprocessing (Normalization)...' },
@@ -50,40 +51,54 @@ const ScanAnalyzePage: React.FC<ScanAnalyzePageProps> = ({ onAnalysisComplete })
       { p: 100, label: 'Classification Complete' },
     ];
 
-    for (const step of steps) {
+    for (const step of steps.slice(0, -1)) {
       await new Promise(r => setTimeout(r, 600 + Math.random() * 800));
       setProgress(step.p);
     }
 
-    const classes: TumorClass[] = ['Glioma', 'Meningioma', 'Pituitary', 'No Tumor'];
-    const classification = classes[Math.floor(Math.random() * classes.length)];
-    const confidence = 0.85 + Math.random() * 0.14;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
 
-    const newScan: ScanResult = {
-      id: `SCN-${Math.floor(1000 + Math.random() * 9000)}`,
-      patientId: 'PAT-999',
-      patientName: 'Anonymous Patient',
-      scanDate: new Date().toLocaleString(),
-      classification,
-      confidence,
-      status: classification === 'No Tumor' ? 'Reviewed' : 'Critical',
-      imageUri: URL.createObjectURL(file),
-      heatmapUri: 'https://picsum.photos/seed/heatmap_gen/800/800',
-      probabilities: {
-        'Glioma': classification === 'Glioma' ? confidence : (1 - confidence) / 3,
-        'Meningioma': classification === 'Meningioma' ? confidence : (1 - confidence) / 3,
-        'Pituitary': classification === 'Pituitary' ? confidence : (1 - confidence) / 3,
-        'No Tumor': classification === 'No Tumor' ? confidence : (1 - confidence) / 3,
-      },
-      metadata: {
-        modality: 'MR',
-        manufacturer: 'Simulated',
-        sliceThickness: '1.0mm',
-        magneticFieldStrength: '3T'
+      const response = await fetch('http://localhost:8000/predict', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
 
-    onAnalysisComplete(newScan);
+      const result = await response.json();
+      setProgress(100);
+
+      const newScan: ScanResult = {
+        id: `SCN-${Math.floor(1000 + Math.random() * 9000)}`,
+        patientId: 'PAT-999',
+        patientName: 'Anonymous Patient',
+        scanDate: new Date().toLocaleString(),
+        classification: result.class as TumorClass,
+        confidence: result.confidence,
+        status: result.class === 'No Tumor' ? 'Reviewed' : 'Critical',
+        imageUri: URL.createObjectURL(file),
+        heatmapUri: 'https://picsum.photos/seed/heatmap_gen/800/800',
+        probabilities: result.all_probabilities,
+        metadata: {
+          modality: 'MR',
+          manufacturer: 'Simulated',
+          sliceThickness: '1.0mm',
+          magneticFieldStrength: '3T'
+        }
+      };
+
+      onAnalysisComplete(newScan);
+    } catch (error) {
+      console.error('Error during analysis:', error);
+      setAnalyzing(false);
+      setProgress(0);
+      // You might want to show an error message to the user here
+      alert('Analysis failed. Please try again.');
+    }
   };
 
   return (
@@ -145,7 +160,11 @@ const ScanAnalyzePage: React.FC<ScanAnalyzePageProps> = ({ onAnalysisComplete })
         </div>
 
         {/* Right Column: Upload Zone */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 relative">
+          {/* 3D Medical Hologram Background */}
+          <div className="absolute top-0 right-0 w-64 h-64 opacity-20 pointer-events-none z-0">
+            <MedicalHologram />
+          </div>
           <div 
             className={`relative h-[400px] border-2 border-dashed rounded-3xl transition-all flex flex-col items-center justify-center p-8 bg-white ${
               dragActive ? 'border-[#2A9D8F] bg-[#2A9D8F]/5' : 'border-gray-200 hover:border-gray-300'

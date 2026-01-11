@@ -2,8 +2,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, X, Send, Bot, BrainCircuit, Loader2, Mic, MicOff } from 'lucide-react';
-import { GoogleGenAI, Modality } from "@google/genai";
 import Assistant3D from './Assistant3D';
+
+// Optional imports with error handling
+let GoogleGenAI: any = null;
+let Modality: any = null;
+try {
+  const genAI = require("@google/genai");
+  GoogleGenAI = genAI.GoogleGenAI;
+  Modality = genAI.Modality;
+} catch (error) {
+  console.warn('GoogleGenAI package not available. AI features will be limited.');
+}
 
 // Audio decoding utilities as per guidelines
 function decode(base64: string) {
@@ -44,17 +54,64 @@ const InteractiveAvatar: React.FC = () => {
   const [messages, setMessages] = useState([
     { role: 'ai', text: 'Dr. Vance, I am NeuroAssistant 4.0. How can I assist with your diagnostic workflow today?' }
   ]);
+  const [hasError, setHasError] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
+  // Error boundary catch - more graceful error handling
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('InteractiveAvatar Error:', event.error);
+      // Only set error if it's a critical failure, not for API issues
+      if (event.error?.message?.includes('Failed to fetch') || 
+          event.error?.message?.includes('NetworkError') ||
+          event.error?.message?.includes('API')) {
+        console.warn('API Error detected, but component will continue rendering');
+      } else {
+        setHasError(true);
+      }
+    };
+    
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
+
+  // If there's a critical error, render a fallback UI instead of nothing
+  if (hasError) {
+    return (
+      <div className="fixed bottom-6 right-6 z-50">
+        <div className="bg-red-500 text-white p-3 rounded-lg shadow-lg">
+          <div className="flex items-center space-x-2">
+            <Bot className="w-5 h-5" />
+            <span className="text-sm">AI Assistant Error</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Safe initialization
+  useEffect(() => {
+    try {
+      setIsInitialized(true);
+      console.log('InteractiveAvatar initialized successfully');
+    } catch (error) {
+      console.error('InteractiveAvatar initialization failed:', error);
+      setHasError(true);
+    }
+  }, []);
+
   // Initialize Speech Recognition with defensive check
   useEffect(() => {
+    if (!isInitialized) return;
+    
     try {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition && typeof SpeechRecognition === 'function') {
@@ -76,11 +133,23 @@ const InteractiveAvatar: React.FC = () => {
     } catch (e) {
       console.warn("Speech recognition initialization failed:", e);
     }
-  }, []);
+  }, [isInitialized]);
 
   const speakResponse = async (text: string) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn('Gemini API key not found. Text-to-speech will be disabled.');
+        return;
+      }
+      
+      // Check if GoogleGenAI is available
+      if (typeof GoogleGenAI === 'undefined') {
+        console.warn('GoogleGenAI not available. Text-to-speech disabled.');
+        return;
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: `Say in a professional clinical tone: ${text}` }] }],
@@ -133,7 +202,26 @@ const InteractiveAvatar: React.FC = () => {
     setIsSpeaking(false);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn('Gemini API key not found. Using fallback response.');
+        // Fallback response when API key is not available
+        const fallbackResponse = "I understand your question. However, the Gemini AI integration is currently disabled due to missing API key. Please contact your system administrator to enable full AI assistance.";
+        setMessages(prev => [...prev, { role: 'ai', text: fallbackResponse }]);
+        setIsThinking(false);
+        return;
+      }
+      
+      // Check if GoogleGenAI is available
+      if (typeof GoogleGenAI === 'undefined') {
+        console.warn('GoogleGenAI not available. Using fallback response.');
+        const fallbackResponse = "I understand your question. However, the AI engine is currently initializing. Please try again in a moment.";
+        setMessages(prev => [...prev, { role: 'ai', text: fallbackResponse }]);
+        setIsThinking(false);
+        return;
+      }
+      
+      const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: textToSend,
@@ -173,9 +261,11 @@ const InteractiveAvatar: React.FC = () => {
     }
   };
 
-  return (
-    <div className="fixed bottom-10 right-10 z-[100]">
-      <AnimatePresence>
+  // Safe render with error boundary
+  try {
+    return (
+      <div className="fixed bottom-10 right-10 z-[100]">
+        <AnimatePresence>
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, scale: 0.9, y: 20, filter: 'blur(10px)' }}
@@ -303,6 +393,19 @@ const InteractiveAvatar: React.FC = () => {
       </motion.button>
     </div>
   );
+  } catch (error) {
+    console.error('InteractiveAvatar render error:', error);
+    return (
+      <div className="fixed bottom-6 right-6 z-50">
+        <div className="bg-red-500 text-white p-3 rounded-lg shadow-lg">
+          <div className="flex items-center space-x-2">
+            <Bot className="w-5 h-5" />
+            <span className="text-sm">AI Assistant Error</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default InteractiveAvatar;

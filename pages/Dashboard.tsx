@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Activity, 
@@ -14,12 +14,14 @@ import {
   Microscope,
   Radar,
   Lock,
-  Globe
+  Globe,
+  Mic
 } from 'lucide-react';
 import { ScanResult } from '../types';
 import Brain3D from '../components/Brain3D';
 import Doctor3D from '../components/Doctor3D';
 import LowPolyMedicalScene from '../components/LowPolyMedicalScene';
+import FloatingBrain3D from '../components/FloatingBrain3D';
 import { 
   BarChart, 
   Bar, 
