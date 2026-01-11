@@ -1,0 +1,8 @@
+{
+  "name": "NeuroVision AI - Brain Tumor Detection System",
+  "description": "Enterprise-grade medical AI platform for brain tumor classification and MRI analysis using Vision Transformers.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
