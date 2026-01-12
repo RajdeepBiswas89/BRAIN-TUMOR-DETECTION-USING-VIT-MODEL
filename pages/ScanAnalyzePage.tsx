@@ -99,8 +99,9 @@ const ScanAnalyzePage: React.FC<ScanAnalyzePageProps> = ({ onAnalysisComplete })
       console.error('Error during analysis:', error);
       setAnalyzing(false);
       setProgress(0);
-      // You might want to show an error message to the user here
-      alert('Analysis failed. Please try again.');
+      // Show a more descriptive error message to the user
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(Analysis failed: \n\nPlease ensure:\n1. Backend is running at: \n2. Internet connection is stable\n3. File is a valid image);
     }
   };
 
