@@ -6,8 +6,8 @@ import io
 import os
 import sys
 
-# Add the grandparent directory to sys.path to import predictor_module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# Add current directory to sys.path to import predictor_module
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from predictor_module import get_predictor
 
 app = FastAPI(title="Brain Tumor Detection API")
@@ -27,16 +27,20 @@ async def root() -> Dict[str, str]:
     return {'message': 'Brain Tumor Detection API is running'}
 
 
-# Model/loading placeholders
-MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'models', 'brain_tumor_vit_model.pth')
-predictor = None  # Replace with actual predictor instance after loading
-
+# Model loading
+MODEL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'models', 'brain_tumor_vit_model.pth')
+predictor = None
 
 try:
-    predictor = get_predictor(MODEL_PATH)
-    print('Model loaded successfully')
+    if os.path.exists(MODEL_PATH):
+        predictor = get_predictor(MODEL_PATH)
+        print(f'✅ Model loaded successfully from {MODEL_PATH}')
+    else:
+        print(f'⚠️ Model file not found at {MODEL_PATH}')
+        predictor = None
 except Exception as e:
-    print(f'Warning: Could not load model: {e}')
+    print(f'⚠️ Could not load model: {e}')
+    print('API will return demo predictions')
     predictor = None
 
 
