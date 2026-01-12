@@ -91,21 +91,21 @@ async def predict(file: UploadFile = File(...)) -> Dict:
                 print(f'✅ Model loaded successfully from {MODEL_PATH} on first prediction')
             except Exception as e:
                 print(f'❌ Could not load model: {e}')
-                # Return demo response if model can't be loaded
-                probs = {
-                    'Glioma': 0.10,
-                    'Meningioma': 0.70,
-                    'No Tumor': 0.05,
-                    'Pituitary': 0.15,
-                }
-                predicted = max(probs, key=probs.get)
-                return {
-                    'class': predicted,
-                    'confidence': round(probs[predicted], 4),
-                    'all_probabilities': probs,
-                }
+                import traceback
+                traceback.print_exc()  # Detailed error info
+                # Return error response instead of demo data
+                raise HTTPException(status_code=500, detail=f"Model could not be loaded: {str(e)}")
         else:
             print(f'❌ Model file not found at {MODEL_PATH}')
+            print('⚠️ Available files in models directory:')
+            models_dir = os.path.dirname(MODEL_PATH)
+            if os.path.exists(models_dir):
+                for item in os.listdir(models_dir):
+                    item_path = os.path.join(models_dir, item)
+                    size = os.path.getsize(item_path) if os.path.isfile(item_path) else 'DIR'
+                    print(f'  - {item}: {size}')
+            else:
+                print('  - models directory does not exist')
             raise HTTPException(status_code=500, detail="Model file not found")
 
     # Real inference
@@ -118,6 +118,8 @@ async def predict(file: UploadFile = File(...)) -> Dict:
         }
     except Exception as e:
         print(f'❌ Prediction error: {e}')
+        import traceback
+        traceback.print_exc()  # Detailed error info
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
 
