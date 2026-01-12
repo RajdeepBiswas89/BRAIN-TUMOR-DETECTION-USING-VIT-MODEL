@@ -8,7 +8,7 @@ import requests
 from pathlib import Path
 
 # Model file details
-MODEL_URL = "YOUR_GOOGLE_DRIVE_LINK_HERE"  # You'll add this
+MODEL_URL = "https://drive.google.com/uc?export=download&id=1x4Hwnt_5kboQ6_z2ozbiM_9sjXYz-L1A"  # Google Drive direct download
 MODEL_PATH = Path(__file__).parent / "models" / "brain_tumor_vit_model.pth"
 
 def download_file(url: str, destination: Path):
@@ -18,8 +18,17 @@ def download_file(url: str, destination: Path):
     # Create directory if it doesn't exist
     destination.parent.mkdir(parents=True, exist_ok=True)
     
-    # Download with streaming for large files
-    response = requests.get(url, stream=True)
+    # For Google Drive, we need to handle large file confirmation
+    session = requests.Session()
+    response = session.get(url, stream=True)
+    
+    # Check for Google Drive virus scan warning
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            url = url + '&confirm=' + value
+            response = session.get(url, stream=True)
+            break
+    
     response.raise_for_status()
     
     total_size = int(response.headers.get('content-length', 0))
@@ -37,8 +46,5 @@ def download_file(url: str, destination: Path):
     print(f"\n✅ Model downloaded successfully! Size: {destination.stat().st_size / (1024*1024):.2f}MB")
 
 if __name__ == "__main__":
-    if MODEL_URL == "YOUR_GOOGLE_DRIVE_LINK_HERE":
-        print("⚠️ Please update MODEL_URL in this script first!")
-        print("Upload your model to Google Drive and get the direct download link.")
-    else:
-        download_file(MODEL_URL, MODEL_PATH)
+    print("🚀 Starting model download from Google Drive...")
+    download_file(MODEL_URL, MODEL_PATH)
