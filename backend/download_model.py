@@ -12,22 +12,42 @@ MODEL_URL = "https://drive.google.com/uc?export=download&id=1x4Hwnt_5kboQ6_z2ozb
 MODEL_PATH = Path(__file__).parent / "models" / "brain_tumor_vit_model.pth"
 
 def download_file(url: str, destination: Path):
-    """Download file from URL with progress."""
+    """Download file from URL with Google Drive large file handling."""
     print(f"Downloading model to {destination}...")
     
     # Create directory if it doesn't exist
     destination.parent.mkdir(parents=True, exist_ok=True)
     
-    # For Google Drive, we need to handle large file confirmation
+    # For Google Drive large files, we need to handle the virus scan warning
     session = requests.Session()
-    response = session.get(url, stream=True)
+    response = session.get(url, allow_redirects=True)
     
-    # Check for Google Drive virus scan warning
-    for key, value in response.cookies.items():
-        if key.startswith('download_warning'):
-            url = url + '&confirm=' + value
-            response = session.get(url, stream=True)
-            break
+    # Check if we got the virus scan warning page
+    content_type = response.headers.get('content-type', '').lower()
+    if 'text/html' in content_type and 'Virus scan warning' in response.text:
+        print("Detected virus scan warning page, extracting download parameters...")
+        
+        import re
+        # Extract the parameters from the form
+        id_match = re.search(r'<input type="hidden" name="id" value="([^"]+)"', response.text)
+        confirm_match = re.search(r'<input type="hidden" name="confirm" value="([^"]+)"', response.text)
+        uuid_match = re.search(r'<input type="hidden" name="uuid" value="([^"]+)"', response.text)
+        
+        if id_match and confirm_match:
+            file_id = id_match.group(1)
+            confirm_val = confirm_match.group(1)
+            uuid_val = uuid_match.group(1) if uuid_match else None
+            
+            # Build the direct download URL with the extracted parameters
+            direct_url = f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm={confirm_val}"
+            if uuid_val:
+                direct_url += f"&uuid={uuid_val}"
+            
+            print(f"Using extracted parameters for download: {direct_url[:100]}...")
+            response = session.get(direct_url, stream=True)
+        else:
+            print("Could not extract download parameters from warning page")
+            return
     
     response.raise_for_status()
     
@@ -44,6 +64,14 @@ def download_file(url: str, destination: Path):
                     print(f"Progress: {percent:.1f}%", end='\r')
     
     print(f"\n✅ Model downloaded successfully! Size: {destination.stat().st_size / (1024*1024):.2f}MB")
+    
+    # Verify it's actually a PyTorch model file
+    try:
+        import torch
+        model_data = torch.load(destination, map_location='cpu', weights_only=False)
+        print("✅ Valid PyTorch model file detected")
+    except Exception as e:
+        print(f"⚠️ Warning: File might not be a valid PyTorch model: {e}")
 
 if __name__ == "__main__":
     print("🚀 Starting model download from Google Drive...")
