@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Large model files (too big for GitHub)
+*.pth
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
